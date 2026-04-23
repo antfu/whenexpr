@@ -215,9 +215,9 @@ function resolveContextValue<T extends Record<string, unknown>>(
 <!-- Badges -->
 
 [npm-version-src]: https://img.shields.io/npm/v/whenexpr?style=flat&colorA=080f12&colorB=1fa669
-[npm-version-href]: https://npmjs.com/package/whenexpr
+[npm-version-href]: https://npmx.dev/package/whenexpr
 [npm-downloads-src]: https://img.shields.io/npm/dm/whenexpr?style=flat&colorA=080f12&colorB=1fa669
-[npm-downloads-href]: https://npmjs.com/package/whenexpr
+[npm-downloads-href]: https://npmx.dev/package/whenexpr
 [bundle-src]: https://img.shields.io/bundlephobia/minzip/whenexpr?style=flat&colorA=080f12&colorB=1fa669&label=minzip
 [bundle-href]: https://bundlephobia.com/result?p=whenexpr
 [license-src]: https://img.shields.io/github/license/antfu/whenexpr.svg?style=flat&colorA=080f12&colorB=1fa669
