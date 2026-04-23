@@ -6,15 +6,199 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-_description_
+A tiny, zero-dependency evaluator for **when-clause expressions** — a mini expression language for conditionally enabling UI, commands, and features based on a context object.
 
-## Note for Developers
+Inspired by [VS Code's when clause contexts](https://code.visualstudio.com/api/references/when-clause-contexts).
 
-This starter recommands using [npm Trusted Publisher](https://github.com/e18e/ecosystem-issues/issues/201), where the release is done on CI to ensure the security of the packages.
+## Install
 
-To do so, you need to run `pnpm publish` manually for the very first time to create the package on npm, and then go to `https://www.npmjs.com/package/<your-package-name>/access` to set the connection to your GitHub repo.
+```sh
+pnpm add whenexpr
+```
 
-Then for the future releases, you can run `pnpm run release` to do the release and the GitHub Actions will take care of the release process.
+## Usage
+
+```ts
+import { evaluateWhen } from 'whenexpr'
+
+const ctx = {
+  mode: 'development',
+  debug: true,
+  verbose: false,
+}
+
+evaluateWhen('debug && mode == development', ctx) // true
+evaluateWhen('verbose || mode == production', ctx) // false
+evaluateWhen('!verbose', ctx) // true
+```
+
+## Expression Syntax
+
+whenexpr supports a JavaScript-expression subset: logical, equality, relational, and arithmetic operators, plus parentheses for grouping.
+
+### Literals
+
+| Kind    | Example                |
+| ------- | ---------------------- |
+| Boolean | `true`, `false`        |
+| Number  | `42`, `1.5`            |
+| String  | `"dev"`, `'dev'`       |
+
+### Operators
+
+| Category   | Operators                        | Example                       |
+| ---------- | -------------------------------- | ----------------------------- |
+| Unary      | `!`, `-`, `+`                    | `!verbose`, `-x`              |
+| Logical    | `&&`, `\|\|`                     | `debug && !verbose`           |
+| Equality   | `==`, `!=`, `===`, `!==`         | `mode == development`, `x === 1` |
+| Relational | `<`, `<=`, `>`, `>=`             | `x >= 10`                     |
+| Arithmetic | `+`, `-`, `*`, `/`, `%`          | `a + b * c`                   |
+| Grouping   | `( … )`                          | `(a \|\| b) && c`             |
+
+### Precedence (low to high)
+
+`||` → `&&` → equality → relational → `+` `-` → `*` `/` `%` → unary → primary
+
+### `==` vs `===` semantics
+
+- **`==` / `!=`** follow the original VS Code when-clause idiom: the right-hand side is a single value token (bare identifier, quoted string, number, or boolean), compared as a string.
+  ```ts
+  evaluateWhen('mode == development', { mode: 'development' }) // true
+  evaluateWhen('count == 5', { count: 5 }) // true — stringified
+  ```
+
+- **`===` / `!==`** follow JavaScript strict equality. Both sides are full expressions.
+  ```ts
+  evaluateWhen('x === 1', { x: 1 }) // true
+  evaluateWhen('x === 1', { x: '1' }) // false — no coercion
+  ```
+
+### Examples
+
+```ts
+// Conditional UI visibility
+evaluateWhen('debug && !verbose', ctx)
+
+// Either/or
+evaluateWhen('mode == development || mode == staging', ctx)
+
+// Arithmetic + strict comparison
+evaluateWhen('(((a || b) && c) + foo) === 1', {
+  a: false,
+  b: true,
+  c: true,
+  foo: 0,
+}) // true
+
+// Ranges
+evaluateWhen('x >= 10 && x < 100', { x: 42 }) // true
+```
+
+## Namespaced Context Keys
+
+Keys can be namespaced using `.` or `:` separators to avoid collisions between unrelated features or plugins:
+
+```ts
+// Flat keys (recommended)
+const ctx = {
+  'vite.mode': 'development',
+  'vite:buildMode': 'lib',
+}
+
+// Nested objects (also supported)
+const ctx = {
+  vite: { mode: 'development', ssr: true },
+}
+```
+
+Both styles work in expressions:
+
+```ts
+evaluateWhen('vite.mode == development', ctx)
+evaluateWhen('vite:buildMode == lib', ctx)
+evaluateWhen('vite.ssr', ctx)
+```
+
+### Lookup Order
+
+When resolving a namespaced key like `vite.mode`:
+
+1. **Exact match** — looks for `ctx['vite.mode']` first
+2. **Nested path** — falls back to `ctx.vite?.mode`
+
+Flat keys take priority over nested objects if both exist.
+
+## API
+
+### `evaluateWhen(expression, ctx, options?)`
+
+Evaluate a when-clause expression against a context object. Returns `boolean`.
+
+```ts
+function evaluateWhen<T extends Record<string, unknown>>(
+  expression: string,
+  ctx: T,
+  options?: { strict?: boolean },
+): boolean
+```
+
+#### Strict mode
+
+By default, unknown context keys evaluate to `undefined` (falsy). Pass `{ strict: true }` to throw an error instead — useful for catching typos or stale expressions during development:
+
+```ts
+evaluateWhen('unknownKey', {}, { strict: true })
+// → Error: Unknown context key: "unknownKey"
+```
+
+Short-circuit evaluation still applies, so keys that aren't reached are not checked:
+
+```ts
+// `debug` is truthy, so `unknownKey` is never evaluated — no throw
+evaluateWhen('debug || unknownKey', { debug: true }, { strict: true })
+```
+
+### `parse(expression)` and `evaluate(node, ctx, options?)`
+
+Under the hood, `evaluateWhen` is `evaluate(parse(expression), ctx, options)`. You can split the two steps to avoid re-parsing when the same expression is evaluated against many contexts:
+
+```ts
+import { evaluate, parse } from 'whenexpr'
+
+const node = parse('debug && mode == development')
+
+evaluate(node, { debug: true, mode: 'development' }) // true
+evaluate(node, { debug: true, mode: 'production' }) // false
+```
+
+`parse` returns a `WhenNode` — a discriminated union you can also inspect or transform:
+
+```ts
+type WhenNode
+  = | { type: 'literal', value: boolean | number | string }
+    | { type: 'key', key: string }
+    | { type: 'unary', op: UnaryOp, operand: WhenNode }
+    | { type: 'binary', op: BinaryOp, left: WhenNode, right: WhenNode }
+
+type UnaryOp = '!' | '-' | '+'
+
+type BinaryOp
+  = | '||' | '&&'
+    | '==' | '!=' | '===' | '!=='
+    | '<' | '>' | '<=' | '>='
+    | '+' | '-' | '*' | '/' | '%'
+```
+
+### `resolveContextValue(key, ctx)`
+
+Resolve a single context key (including namespaced keys) from the context object. Returns `unknown`, or `undefined` if the key is not found.
+
+```ts
+function resolveContextValue<T extends Record<string, unknown>>(
+  key: string,
+  ctx: T,
+): unknown
+```
 
 ## Sponsors
 
