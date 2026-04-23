@@ -10,6 +10,8 @@ A tiny, zero-dependency evaluator for **when-clause expressions** — a mini exp
 
 Inspired by [VS Code's when clause contexts](https://code.visualstudio.com/api/references/when-clause-contexts).
 
+**Type-safe**: expression strings are statically validated against your context type at the call site. Typos and unknown keys surface as TypeScript errors before the code runs.
+
 ## Install
 
 ```sh
@@ -21,7 +23,13 @@ pnpm add whenexpr
 ```ts
 import { evaluateWhen } from 'whenexpr'
 
-const ctx = {
+interface Context {
+  mode: 'development' | 'production'
+  debug: boolean
+  verbose: boolean
+}
+
+const ctx: Context = {
   mode: 'development',
   debug: true,
   verbose: false,
@@ -30,6 +38,10 @@ const ctx = {
 evaluateWhen('debug && mode == development', ctx) // true
 evaluateWhen('verbose || mode == production', ctx) // false
 evaluateWhen('!verbose', ctx) // true
+
+// Typos are caught at compile time:
+evaluateWhen('degub && mode == development', ctx)
+//           ^^^^^^^ Type error: Unknown context key: "degub"
 ```
 
 ## Expression Syntax
@@ -128,6 +140,74 @@ When resolving a namespaced key like `vite.mode`:
 
 Flat keys take priority over nested objects if both exist.
 
+## Type Safety
+
+When `ctx` is typed with known keys, `evaluateWhen` parses and validates the expression string **in the TypeScript type system**. Unknown keys and syntax errors become type errors at the call site — no runtime check needed, no `strict` flag to remember.
+
+```ts
+interface Context {
+  mode: 'development' | 'production'
+  debug: boolean
+  editor: { lang: string }
+}
+declare const ctx: Context
+
+evaluateWhen('debug && mode == development', ctx) // ok
+evaluateWhen('editor.lang == ts', ctx) // ok — nested path
+evaluateWhen('debug || unknownKey', ctx)
+//                     ^^^^^^^^^^ Unknown context key: "unknownKey"
+evaluateWhen('debug &&& verbose', ctx)
+//           ^^^^^^^^^^^^^^^^^^^^ Syntax error
+```
+
+### Levels of checking
+
+Validation is layered so you pay only for what you need:
+
+| `ctx` type | `expression` | Syntax check | Key check |
+| ---------- | ------------ | :----------: | :-------: |
+| Specific (`interface Ctx { … }`) | literal | ✓ | ✓ |
+| Wide (`object`, `{}`, `Record<string, unknown>`, `any`, `unknown`) | literal | ✓ | — |
+| anything | `string` variable | — | — |
+
+So a wide context still catches `(unbalanced` or `debug &&& verbose` — you just don't need to enumerate every key. And a dynamic `string` expression opts out entirely.
+
+```ts
+const loose: Record<string, unknown> = {}
+evaluateWhen('anything && at-all', loose) // ok — keys not checked
+evaluateWhen('(unbalanced', loose) // type error: syntax
+
+const expr: string = loadExprFromDisk()
+evaluateWhen(expr, ctx) // ok — no validation at all
+```
+
+### Building your own typed `define` helpers
+
+Libraries that expose `defineCommand`, `defineAction`, etc. can carry the validation into their own APIs with the `WhenExpression<Ctx, S>` helper:
+
+```ts
+import type { WhenExpression } from 'whenexpr'
+
+interface AppCtx {
+  mode: 'dev' | 'prod'
+  debug: boolean
+}
+
+function defineCommand<const W extends string>(cmd: {
+  name: string
+  title: string
+  when?: WhenExpression<AppCtx, W>
+}): typeof cmd {
+  return cmd
+}
+
+defineCommand({ name: 'toggle', title: 'Toggle', when: 'debug && mode == dev' })
+defineCommand({ name: 'x', title: 'X', when: 'typo' })
+//                                            ^^^^^^ type error
+```
+
+The `const W extends string` captures the literal so `WhenExpression` can validate it. Runtime behavior is unchanged — the helper is purely a type.
+
 ## API
 
 ### `evaluateWhen(expression, ctx, options?)`
@@ -135,12 +215,14 @@ Flat keys take priority over nested objects if both exist.
 Evaluate a when-clause expression against a context object. Returns `boolean`.
 
 ```ts
-function evaluateWhen<T extends Record<string, unknown>>(
-  expression: string,
+function evaluateWhen<T extends object, const E extends string>(
+  expression: E & ValidateExpression<E, T>,
   ctx: T,
   options?: { strict?: boolean },
 ): boolean
 ```
+
+The `ValidateExpression<E, T>` in the signature is what performs static checking — see [Type Safety](#type-safety) above.
 
 #### Strict mode
 
@@ -199,6 +281,15 @@ function resolveContextValue<T extends Record<string, unknown>>(
   ctx: T,
 ): unknown
 ```
+
+### Type helpers
+
+| Type | Purpose |
+| ---- | ------- |
+| `WhenExpression<T, S>` | Branded expression type for use in your own `define`-style helpers (see [Type Safety](#building-your-own-typed-define-helpers)). |
+| `ValidateExpression<S, T>` | Lower-level: returns `S` on success, `WhenExpressionError<Msg>` on failure. |
+| `WhenExpressionError<Msg>` | Branded error string. Assignability failure surfaces `Msg` in the TS tooltip. |
+| `ContextPaths<T>` | Union of valid flat + `.`/`:` nested paths for `T`. |
 
 ## Sponsors
 

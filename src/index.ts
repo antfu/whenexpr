@@ -1,3 +1,8 @@
+import type { ValidateExpression } from './types'
+
+export type { ContextPaths } from './paths'
+export type { ValidateExpression, WhenExpression, WhenExpressionError } from './types'
+
 export interface EvaluateOptions {
   /**
    * If `true`, throw when the expression references a context key that does
@@ -410,15 +415,25 @@ function runBinary(
  * - Arithmetic: `+`, `-`, `*`, `/`, `%`, unary `-` / `+`
  * - Grouping: `(` … `)`
  *
- * With `{ strict: true }`, referencing an unknown context key throws.
- * Short-circuit evaluation still applies — keys not reached are not checked.
+ * When `ctx` has a specific type with known keys, the expression string is
+ * **statically validated** — unknown context keys and syntax errors surface
+ * as TypeScript errors at the call site. Pass `ctx` typed as
+ * `Record<string, unknown>`, or the expression as `string`, to opt out of
+ * static checking (e.g. for dynamic expressions).
+ *
+ * With `{ strict: true }`, referencing an unknown context key at runtime
+ * throws. Short-circuit evaluation still applies — keys not reached are not
+ * checked.
  */
-export function evaluateWhen<T extends Record<string, unknown>>(
-  expression: string,
+export function evaluateWhen<
+  T extends object,
+  const E extends string,
+>(
+  expression: E & ValidateExpression<E, T>,
   ctx: T,
   options?: EvaluateOptions,
 ): boolean {
-  return evaluate(parse(expression), ctx, options)
+  return evaluate(parse(expression as string), ctx as Record<string, unknown>, options)
 }
 
 /**
