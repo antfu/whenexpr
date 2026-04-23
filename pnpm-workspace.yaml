@@ -18,14 +18,15 @@ catalogs:
     lint-staged: ^16.4.0
     publint: ^0.3.18
     simple-git-hooks: ^2.13.1
-    tsdown: ^0.17.3
+    tsdown: ^0.21.9
     tsx: ^4.21.0
     typescript: ^6.0.2
     vite: ^8.0.8
   inlined:
     '@antfu/utils': ^9.3.0
   testing:
-    tsnapi: ^0.1.1
+    tsdown-stale-guard: ^0.1.1
+    tsnapi: ^0.3.2
     vitest: ^4.1.4
   types:
     '@types/node': ^25.6.0

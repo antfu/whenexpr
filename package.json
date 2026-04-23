@@ -25,8 +25,6 @@
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.mjs",
-  "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "files": [
     "dist"
@@ -38,7 +36,7 @@
     "prepublishOnly": "nr build",
     "release": "bumpp",
     "start": "tsx src/index.ts",
-    "test": "vitest",
+    "test": "pnpm run build && vitest",
     "typecheck": "tsc",
     "prepare": "simple-git-hooks"
   },
@@ -53,6 +51,7 @@
     "publint": "catalog:cli",
     "simple-git-hooks": "catalog:cli",
     "tsdown": "catalog:cli",
+    "tsdown-stale-guard": "catalog:testing",
     "tsnapi": "catalog:testing",
     "tsx": "catalog:cli",
     "typescript": "catalog:cli",
