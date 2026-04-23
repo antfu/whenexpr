@@ -1,7 +1,7 @@
 {
   "name": "whenexpr",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packageManager": "pnpm@10.33.0",
   "description": "Tiny when-clause expression evaluator, inspired by VS Code's when clauses",
   "author": "Anthony Fu <anthonyfu117@hotmail.com>",
