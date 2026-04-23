@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { evaluateWhen } from '../src/index'
 
 describe('evaluateWhen', () => {
-  const ctx = {
+  // Broad type so runtime tests that reference unknown keys still typecheck;
+  // narrower types are covered by test/types.test-d.ts.
+  const ctx: Record<string, unknown> = {
     mode: 'development',
     debug: true,
     verbose: false,
@@ -146,7 +148,7 @@ describe('evaluateWhen', () => {
   })
 
   describe('namespaced keys (dot separator)', () => {
-    const nsCtx = {
+    const nsCtx: Record<string, unknown> = {
       'debug': true,
       'vite.mode': 'development',
     }
@@ -184,7 +186,7 @@ describe('evaluateWhen', () => {
   })
 
   describe('namespaced keys (nested objects)', () => {
-    const nestedCtx = {
+    const nestedCtx: Record<string, unknown> = {
       debug: true,
       vite: { mode: 'development', ssr: true },
     }
@@ -219,7 +221,7 @@ describe('evaluateWhen', () => {
   })
 
   describe('strict mode', () => {
-    const strictCtx = {
+    const strictCtx: Record<string, unknown> = {
       debug: true,
       verbose: false,
       mode: 'development',

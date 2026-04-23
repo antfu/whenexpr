@@ -1,6 +1,5 @@
-import process from 'node:process'
 import { defineConfig } from 'tsdown'
-import ApiSnapshot from 'tsnapi/rolldown'
+import { StaleGuardRecorder } from 'tsdown-stale-guard'
 
 export default defineConfig({
   entry: [
@@ -10,9 +9,6 @@ export default defineConfig({
   exports: true,
   publint: true,
   plugins: [
-    ApiSnapshot({
-      // TODO: remove this when the library is stable to guard against breaking changes
-      update: !process.env.CI,
-    }),
+    StaleGuardRecorder(),
   ],
 })
